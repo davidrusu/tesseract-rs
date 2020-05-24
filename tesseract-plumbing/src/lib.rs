@@ -16,6 +16,8 @@ pub struct Tesseract {
     raw: *mut TessBaseAPI,
 }
 
+pub struct TesseractInitialized(Tesseract);
+
 impl Drop for Tesseract {
     fn drop(&mut self) {
         unsafe { TessBaseAPIDelete(self.raw) }
@@ -56,13 +58,27 @@ impl Tesseract {
             raw: unsafe { TessBaseAPICreate() },
         }
     }
-    pub fn set_lang(&mut self, language: &CStr) -> i32 {
-        unsafe { TessBaseAPIInit3(self.raw, ptr::null(), language.as_ptr()) }
+
+    pub fn initialize(
+        self,
+        datapath: Option<&CStr>,
+        language: Option<&CStr>,
+    ) -> TesseractInitialized {
+        unsafe {
+            TessBaseAPIInit3(
+                self.raw,
+                datapath.map(CStr::as_ptr).unwrap_or_else(ptr::null),
+                language.map(CStr::as_ptr).unwrap_or_else(ptr::null),
+            )
+        };
+        TesseractInitialized(self)
     }
+}
+impl TesseractInitialized {
     pub fn set_image(&mut self, filename: &CStr) {
         unsafe {
             let img = pixRead(filename.as_ptr());
-            TessBaseAPISetImage2(self.raw, img);
+            TessBaseAPISetImage2(self.0.raw, img);
             pixFreeData(img);
         }
     }
@@ -76,7 +92,7 @@ impl Tesseract {
     ) {
         unsafe {
             TessBaseAPISetImage(
-                self.raw,
+                self.0.raw,
                 frame_data.as_ptr(),
                 width,
                 height,
@@ -88,34 +104,33 @@ impl Tesseract {
     pub fn set_image_from_mem(&mut self, img: &[u8]) {
         unsafe {
             let img = pixReadMem(img.as_ptr(), img.len());
-            TessBaseAPISetImage2(self.raw, img);
+            TessBaseAPISetImage2(self.0.raw, img);
             pixFreeData(img);
         }
     }
 
     pub fn set_source_resolution(&mut self, ppi: i32) {
         unsafe {
-            TessBaseAPISetSourceResolution(self.raw, ppi);
+            TessBaseAPISetSourceResolution(self.0.raw, ppi);
         }
     }
 
     pub fn set_variable(&mut self, name: &CStr, value: &CStr) -> i32 {
-        unsafe { TessBaseAPISetVariable(self.raw, name.as_ptr(), value.as_ptr()) }
+        unsafe { TessBaseAPISetVariable(self.0.raw, name.as_ptr(), value.as_ptr()) }
     }
     pub fn recognize(&mut self) -> i32 {
-        unsafe { TessBaseAPIRecognize(self.raw, ptr::null_mut()) }
+        unsafe { TessBaseAPIRecognize(self.0.raw, ptr::null_mut()) }
     }
     pub fn get_text(&self) -> TesseractText {
         unsafe {
-            let cs_value = TessBaseAPIGetUTF8Text(self.raw);
+            let cs_value = TessBaseAPIGetUTF8Text(self.0.raw);
             TesseractText::new(cs_value)
         }
     }
 }
 
 pub fn ocr(filename: &CStr, language: &CStr) -> TesseractText {
-    let mut cube = Tesseract::new();
-    cube.set_lang(language);
+    let mut cube = Tesseract::new().initialize(None, Some(language));
     cube.set_image(filename);
     cube.recognize();
     cube.get_text()
@@ -129,8 +144,7 @@ pub fn ocr_from_frame(
     bytes_per_line: i32,
     language: &CStr,
 ) -> TesseractText {
-    let mut cube = Tesseract::new();
-    cube.set_lang(language);
+    let mut cube = Tesseract::new().initialize(None, Some(language));
     cube.set_frame(frame_data, width, height, bytes_per_pixel, bytes_per_line);
     cube.recognize();
     cube.get_text()
@@ -186,8 +200,7 @@ fn ocr_from_mem_with_ppi() {
     let mut buffer = Vec::new();
     img.read_to_end(&mut buffer).unwrap();
 
-    let mut cube = Tesseract::new();
-    cube.set_lang(&CString::new("eng").unwrap());
+    let mut cube = Tesseract::new().initialize(None, Some(&CString::new("eng").unwrap()));
     cube.set_image_from_mem(&buffer);
 
     cube.set_source_resolution(70);
@@ -201,8 +214,7 @@ fn ocr_from_mem_with_ppi() {
 fn expanded_test() {
     use std::ffi::CString;
 
-    let mut cube = Tesseract::new();
-    cube.set_lang(&CString::new("eng").unwrap());
+    let mut cube = Tesseract::new().initialize(None, Some(&CString::new("eng").unwrap()));
     cube.set_image(&CString::new("../img.png").unwrap());
     cube.recognize();
     assert_eq!(
