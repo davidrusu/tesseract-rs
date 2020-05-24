@@ -2,6 +2,7 @@ extern crate leptonica_sys;
 extern crate tesseract_sys;
 
 use leptonica_sys::{pixFreeData, pixRead, pixReadMem};
+use std::convert::AsRef;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::ptr;
@@ -35,8 +36,10 @@ impl TesseractText {
     unsafe fn new(raw: *const c_char) -> Self {
         Self { raw }
     }
+}
 
-    pub fn as_cstr(&self) -> &CStr {
+impl AsRef<CStr> for TesseractText {
+    fn as_ref(&self) -> &CStr {
         unsafe { CStr::from_ptr(self.raw) }
     }
 }
@@ -142,7 +145,7 @@ fn ocr_test() {
             &CString::new("../img.png").unwrap(),
             &CString::new("eng").unwrap()
         )
-        .as_cstr()
+        .as_ref()
         .to_str(),
         Ok(include_str!("../../img.txt"))
     );
@@ -167,7 +170,7 @@ fn ocr_from_frame_test() {
             2256 * 3,
             &CString::new("eng").unwrap()
         )
-        .as_cstr()
+        .as_ref()
         .to_str(),
         Ok(include_str!("../../img.txt"))
     );
@@ -189,7 +192,7 @@ fn ocr_from_mem_with_ppi() {
 
     cube.set_source_resolution(70);
     assert_eq!(
-        cube.get_text().as_cstr().to_str(),
+        cube.get_text().as_ref().to_str(),
         Ok(include_str!("../../img.txt"))
     );
 }
@@ -203,7 +206,7 @@ fn expanded_test() {
     cube.set_image(&CString::new("../img.png").unwrap());
     cube.recognize();
     assert_eq!(
-        cube.get_text().as_cstr().to_str(),
+        cube.get_text().as_ref().to_str(),
         Ok(include_str!("../../img.txt"))
     )
 }
