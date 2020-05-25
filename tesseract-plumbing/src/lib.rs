@@ -59,19 +59,24 @@ impl Tesseract {
         }
     }
 
+    // https://fossies.org/dox/tesseract-4.1.1/classtesseract_1_1TessBaseAPI.html#a96899e8e5358d96752ab1cfc3bc09f3e
     pub fn initialize(
         self,
         datapath: Option<&CStr>,
         language: Option<&CStr>,
-    ) -> TesseractInitialized {
-        unsafe {
+    ) -> Result<TesseractInitialized, ()> {
+        let ret = unsafe {
             TessBaseAPIInit3(
                 self.raw,
                 datapath.map(CStr::as_ptr).unwrap_or_else(ptr::null),
                 language.map(CStr::as_ptr).unwrap_or_else(ptr::null),
             )
         };
-        TesseractInitialized(self)
+        if ret == 0 {
+            Ok(TesseractInitialized(self))
+        } else {
+            Err(())
+        }
     }
 }
 impl TesseractInitialized {
@@ -130,7 +135,7 @@ impl TesseractInitialized {
 }
 
 pub fn ocr(filename: &CStr, language: &CStr) -> TesseractText {
-    let mut cube = Tesseract::new().initialize(None, Some(language));
+    let mut cube = Tesseract::new().initialize(None, Some(language)).unwrap();
     cube.set_image(filename);
     cube.recognize();
     cube.get_text()
@@ -144,7 +149,7 @@ pub fn ocr_from_frame(
     bytes_per_line: i32,
     language: &CStr,
 ) -> TesseractText {
-    let mut cube = Tesseract::new().initialize(None, Some(language));
+    let mut cube = Tesseract::new().initialize(None, Some(language)).unwrap();
     cube.set_frame(frame_data, width, height, bytes_per_pixel, bytes_per_line);
     cube.recognize();
     cube.get_text()
@@ -200,7 +205,9 @@ fn ocr_from_mem_with_ppi() {
     let mut buffer = Vec::new();
     img.read_to_end(&mut buffer).unwrap();
 
-    let mut cube = Tesseract::new().initialize(None, Some(&CString::new("eng").unwrap()));
+    let mut cube = Tesseract::new()
+        .initialize(None, Some(&CString::new("eng").unwrap()))
+        .unwrap();
     cube.set_image_from_mem(&buffer);
 
     cube.set_source_resolution(70);
@@ -214,7 +221,9 @@ fn ocr_from_mem_with_ppi() {
 fn expanded_test() {
     use std::ffi::CString;
 
-    let mut cube = Tesseract::new().initialize(None, Some(&CString::new("eng").unwrap()));
+    let mut cube = Tesseract::new()
+        .initialize(None, Some(&CString::new("eng").unwrap()))
+        .unwrap();
     cube.set_image(&CString::new("../img.png").unwrap());
     cube.recognize();
     assert_eq!(
