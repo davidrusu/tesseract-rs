@@ -59,7 +59,11 @@ impl Tesseract {
         }
     }
 
-    // https://fossies.org/dox/tesseract-4.1.1/classtesseract_1_1TessBaseAPI.html#a96899e8e5358d96752ab1cfc3bc09f3e
+    /// Wrapper for [`Init`](https://fossies.org/dox/tesseract-4.1.1/classtesseract_1_1TessBaseAPI.html#a96899e8e5358d96752ab1cfc3bc09f3e)
+    ///
+    /// Start tesseract
+    ///
+    /// TODO: implement the additional parameters.
     pub fn initialize(
         self,
         datapath: Option<&CStr>,
@@ -123,13 +127,32 @@ impl TesseractInitialized {
     pub fn set_variable(&mut self, name: &CStr, value: &CStr) -> i32 {
         unsafe { TessBaseAPISetVariable(self.0.raw, name.as_ptr(), value.as_ptr()) }
     }
-    pub fn recognize(&mut self) -> i32 {
-        unsafe { TessBaseAPIRecognize(self.0.raw, ptr::null_mut()) }
+    /// Wrapper for [`Recognize`](https://fossies.org/dox/tesseract-4.1.1/classtesseract_1_1TessBaseAPI.html#a0e4065c20b142d69a2324ee0c74ae0b0)
+    ///
+    /// Recognize the image. Returns `Ok(())` on success and `Err(())` otherwise.
+    /// It is currently unclear to me what would make it error.
+    ///
+    /// It could take a progress argument (`monitor`). If there is appetite for this, let me know and I could try and implement it.
+    pub fn recognize(&mut self) -> Result<(), ()> {
+        let ret = unsafe { TessBaseAPIRecognize(self.0.raw, ptr::null_mut()) };
+        match ret {
+            0 => Ok(()),
+            _ => Err(()),
+        }
     }
-    pub fn get_text(&self) -> TesseractText {
-        unsafe {
-            let cs_value = TessBaseAPIGetUTF8Text(self.0.raw);
-            TesseractText::new(cs_value)
+    /// Wrapper for [`GetUTF8Text`](https://fossies.org/dox/tesseract-4.1.1/classtesseract_1_1TessBaseAPI.html#a115ef656f83352ba608b4f0bf9cfa2c4)
+    ///
+    /// Get the text out of an image.
+    ///
+    /// Can return an error (null pointer), but it is not clear to me what would cause this.
+    ///
+    /// This will implicitly call `recognize` if required.
+    pub fn get_text(&self) -> Result<TesseractText, ()> {
+        let cs_value = unsafe { TessBaseAPIGetUTF8Text(self.0.raw) };
+        if cs_value.is_null() {
+            Err(())
+        } else {
+            Ok(unsafe { TesseractText::new(cs_value) })
         }
     }
 }
@@ -137,8 +160,8 @@ impl TesseractInitialized {
 pub fn ocr(filename: &CStr, language: &CStr) -> TesseractText {
     let mut cube = Tesseract::new().initialize(None, Some(language)).unwrap();
     cube.set_image(filename);
-    cube.recognize();
-    cube.get_text()
+    cube.recognize().unwrap();
+    cube.get_text().unwrap()
 }
 
 pub fn ocr_from_frame(
@@ -151,8 +174,8 @@ pub fn ocr_from_frame(
 ) -> TesseractText {
     let mut cube = Tesseract::new().initialize(None, Some(language)).unwrap();
     cube.set_frame(frame_data, width, height, bytes_per_pixel, bytes_per_line);
-    cube.recognize();
-    cube.get_text()
+    cube.recognize().unwrap();
+    cube.get_text().unwrap()
 }
 
 #[test]
@@ -212,7 +235,7 @@ fn ocr_from_mem_with_ppi() {
 
     cube.set_source_resolution(70);
     assert_eq!(
-        cube.get_text().as_ref().to_str(),
+        cube.get_text().unwrap().as_ref().to_str(),
         Ok(include_str!("../../img.txt"))
     );
 }
@@ -225,9 +248,9 @@ fn expanded_test() {
         .initialize(None, Some(&CString::new("eng").unwrap()))
         .unwrap();
     cube.set_image(&CString::new("../img.png").unwrap());
-    cube.recognize();
+    cube.recognize().unwrap();
     assert_eq!(
-        cube.get_text().as_ref().to_str(),
+        cube.get_text().unwrap().as_ref().to_str(),
         Ok(include_str!("../../img.txt"))
     )
 }
