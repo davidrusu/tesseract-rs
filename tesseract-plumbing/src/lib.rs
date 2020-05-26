@@ -4,7 +4,7 @@ extern crate tesseract_sys;
 use leptonica_sys::{pixFreeData, pixRead, pixReadMem};
 use std::convert::AsRef;
 use std::ffi::CStr;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_int};
 use std::ptr;
 use tesseract_sys::{
     TessBaseAPICreate, TessBaseAPIDelete, TessBaseAPIGetUTF8Text, TessBaseAPIInit3,
@@ -99,12 +99,11 @@ impl TessBaseAPI {
         }
     }
 
-    /// Wrapper for [`Init`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a96899e8e5358d96752ab1cfc3bc09f3e)
+    /// Wrapper for [`Init-2`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a965ef2ff51c440756519a3d6f755f34f)
+    /// and [`TessBaseAPIInit3`](https://tesseract-ocr.github.io/tessapi/5.x/a00008.html#a5978ca2bd29df32a2eece528329ed425)
     ///
     /// Start tesseract
-    ///
-    /// TODO: implement the additional parameters.
-    pub fn initialize(&self, datapath: Option<&CStr>, language: Option<&CStr>) -> Result<(), ()> {
+    pub fn init_2(&self, datapath: Option<&CStr>, language: Option<&CStr>) -> Result<(), ()> {
         let ret = unsafe {
             TessBaseAPIInit3(
                 self.raw,
@@ -125,18 +124,20 @@ impl TessBaseAPI {
             TessBaseAPISetImage2(self.raw, pix.raw);
         }
     }
-    pub fn set_frame(
+
+    /// Wrapper for [`SetImage-1`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#aa463622111f3b11d8fca5863709cc699)
+    pub fn set_image(
         &mut self,
-        frame_data: &[u8],
-        width: i32,
-        height: i32,
-        bytes_per_pixel: i32,
-        bytes_per_line: i32,
+        image_data: &[u8],
+        width: c_int,
+        height: c_int,
+        bytes_per_pixel: c_int,
+        bytes_per_line: c_int,
     ) {
         unsafe {
             TessBaseAPISetImage(
                 self.raw,
-                frame_data.as_ptr(),
+                image_data.as_ptr(),
                 width,
                 height,
                 bytes_per_pixel,
@@ -144,8 +145,8 @@ impl TessBaseAPI {
             );
         }
     }
-
-    pub fn set_source_resolution(&mut self, ppi: i32) {
+    /// Wrapper for [`SetSourceResolution`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a4ded6137507a4e8eb6ed4bea0b9648f4)
+    pub fn set_source_resolution(&mut self, ppi: c_int) {
         unsafe {
             TessBaseAPISetSourceResolution(self.raw, ppi);
         }
@@ -186,7 +187,7 @@ impl TessBaseAPI {
 
 pub fn ocr(filename: &CStr, language: &CStr) -> TesseractText {
     let mut cube = TessBaseAPI::new();
-    cube.initialize(None, Some(language)).unwrap();
+    cube.init_2(None, Some(language)).unwrap();
     let image = Pix::read(filename).unwrap();
     cube.set_image_2(&image);
     cube.recognize().unwrap();
@@ -202,8 +203,8 @@ pub fn ocr_from_frame(
     language: &CStr,
 ) -> TesseractText {
     let mut cube = TessBaseAPI::new();
-    cube.initialize(None, Some(language)).unwrap();
-    cube.set_frame(frame_data, width, height, bytes_per_pixel, bytes_per_line);
+    cube.init_2(None, Some(language)).unwrap();
+    cube.set_image(frame_data, width, height, bytes_per_pixel, bytes_per_line);
     cube.recognize().unwrap();
     cube.get_text().unwrap()
 }
@@ -249,7 +250,7 @@ fn ocr_from_mem_with_ppi() {
     let pix = Pix::read_mem(include_bytes!("../../img.tiff")).unwrap();
 
     let mut cube = TessBaseAPI::new();
-    cube.initialize(None, Some(&CString::new("eng").unwrap()))
+    cube.init_2(None, Some(&CString::new("eng").unwrap()))
         .unwrap();
     cube.set_image_2(&pix);
 
@@ -265,7 +266,7 @@ fn expanded_test() {
     use std::ffi::CString;
 
     let mut cube = TessBaseAPI::new();
-    cube.initialize(None, Some(&CString::new("eng").unwrap()))
+    cube.init_2(None, Some(&CString::new("eng").unwrap()))
         .unwrap();
     let pix = Pix::read(&CString::new("../img.png").unwrap()).unwrap();
     cube.set_image_2(&pix);
