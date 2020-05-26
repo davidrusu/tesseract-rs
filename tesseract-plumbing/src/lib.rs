@@ -31,9 +31,21 @@ impl Pix {
 
     /// Wrapper for [`pixRead`](https://tpgit.github.io/Leptonica/leptprotos_8h.html#a84634846cbb5e01df667d6e9241dfc53)
     ///
-    /// Read an image
+    /// Read an image from a filename
     fn read(filename: &CStr) -> Result<Self, ()> {
         let ptr = unsafe { pixRead(filename.as_ptr()) };
+        if ptr.is_null() {
+            Err(())
+        } else {
+            Ok(unsafe { Self::new(ptr) })
+        }
+    }
+
+    /// Wrapper for [`pixReadMem`](https://tpgit.github.io/Leptonica/leptprotos_8h.html#a027a927dc3438192e3bdae8c219d7f6a)
+    ///
+    /// Read an image from memory
+    pub fn read_mem(img: &[u8]) -> Result<Self, ()> {
+        let ptr = unsafe { pixReadMem(img.as_ptr(), img.len()) };
         if ptr.is_null() {
             Err(())
         } else {
@@ -114,6 +126,7 @@ impl Tesseract {
     }
 }
 impl TesseractInitialized {
+    /// Wrapper for [`SetImage-2`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a0c4c7f05fd58b3665b123232a05545ad)
     pub fn set_image_2(&mut self, pix: &Pix) {
         unsafe {
             TessBaseAPISetImage2(self.0.raw, pix.raw);
@@ -136,13 +149,6 @@ impl TesseractInitialized {
                 bytes_per_pixel,
                 bytes_per_line,
             );
-        }
-    }
-    pub fn set_image_from_mem(&mut self, img: &[u8]) {
-        unsafe {
-            let img = pixReadMem(img.as_ptr(), img.len());
-            TessBaseAPISetImage2(self.0.raw, img);
-            pixFreeData(img);
         }
     }
 
@@ -225,16 +231,10 @@ fn ocr_test() {
 #[test]
 fn ocr_from_frame_test() {
     use std::ffi::CString;
-    use std::fs::File;
-    use std::io::Read;
-
-    let mut img = File::open("../img.tiff").unwrap();
-    let mut buffer = Vec::new();
-    img.read_to_end(&mut buffer).unwrap();
 
     assert_eq!(
         ocr_from_frame(
-            &buffer,
+            include_bytes!("../../img.tiff"),
             2256,
             324,
             3,
@@ -250,17 +250,13 @@ fn ocr_from_frame_test() {
 #[test]
 fn ocr_from_mem_with_ppi() {
     use std::ffi::CString;
-    use std::fs::File;
-    use std::io::Read;
 
-    let mut img = File::open("../img.tiff").unwrap();
-    let mut buffer = Vec::new();
-    img.read_to_end(&mut buffer).unwrap();
+    let pix = Pix::read_mem(include_bytes!("../../img.tiff")).unwrap();
 
     let mut cube = Tesseract::new()
         .initialize(None, Some(&CString::new("eng").unwrap()))
         .unwrap();
-    cube.set_image_from_mem(&buffer);
+    cube.set_image_2(&pix);
 
     cube.set_source_resolution(70);
     assert_eq!(
