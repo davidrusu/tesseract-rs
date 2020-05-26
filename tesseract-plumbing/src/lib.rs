@@ -7,7 +7,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::ptr;
 use tesseract_sys::{
-    TessBaseAPI, TessBaseAPICreate, TessBaseAPIDelete, TessBaseAPIGetUTF8Text, TessBaseAPIInit3,
+    TessBaseAPICreate, TessBaseAPIDelete, TessBaseAPIGetUTF8Text, TessBaseAPIInit3,
     TessBaseAPIRecognize, TessBaseAPISetImage, TessBaseAPISetImage2,
     TessBaseAPISetSourceResolution, TessBaseAPISetVariable, TessDeleteText,
 };
@@ -54,11 +54,11 @@ impl Pix {
     }
 }
 
-pub struct Tesseract {
-    raw: *mut TessBaseAPI,
+pub struct TessBaseAPI {
+    raw: *mut tesseract_sys::TessBaseAPI,
 }
 
-impl Drop for Tesseract {
+impl Drop for TessBaseAPI {
     fn drop(&mut self) {
         unsafe { TessBaseAPIDelete(self.raw) }
     }
@@ -86,15 +86,15 @@ impl AsRef<CStr> for TesseractText {
     }
 }
 
-impl Default for Tesseract {
+impl Default for TessBaseAPI {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Tesseract {
-    pub fn new() -> Tesseract {
-        Tesseract {
+impl TessBaseAPI {
+    pub fn new() -> TessBaseAPI {
+        TessBaseAPI {
             raw: unsafe { TessBaseAPICreate() },
         }
     }
@@ -185,7 +185,7 @@ impl Tesseract {
 }
 
 pub fn ocr(filename: &CStr, language: &CStr) -> TesseractText {
-    let mut cube = Tesseract::new();
+    let mut cube = TessBaseAPI::new();
     cube.initialize(None, Some(language)).unwrap();
     let image = Pix::read(filename).unwrap();
     cube.set_image_2(&image);
@@ -201,7 +201,7 @@ pub fn ocr_from_frame(
     bytes_per_line: i32,
     language: &CStr,
 ) -> TesseractText {
-    let mut cube = Tesseract::new();
+    let mut cube = TessBaseAPI::new();
     cube.initialize(None, Some(language)).unwrap();
     cube.set_frame(frame_data, width, height, bytes_per_pixel, bytes_per_line);
     cube.recognize().unwrap();
@@ -248,7 +248,7 @@ fn ocr_from_mem_with_ppi() {
 
     let pix = Pix::read_mem(include_bytes!("../../img.tiff")).unwrap();
 
-    let mut cube = Tesseract::new();
+    let mut cube = TessBaseAPI::new();
     cube.initialize(None, Some(&CString::new("eng").unwrap()))
         .unwrap();
     cube.set_image_2(&pix);
@@ -264,7 +264,7 @@ fn ocr_from_mem_with_ppi() {
 fn expanded_test() {
     use std::ffi::CString;
 
-    let mut cube = Tesseract::new();
+    let mut cube = TessBaseAPI::new();
     cube.initialize(None, Some(&CString::new("eng").unwrap()))
         .unwrap();
     let pix = Pix::read(&CString::new("../img.png").unwrap()).unwrap();
@@ -278,7 +278,7 @@ fn expanded_test() {
 
 #[test]
 fn setting_image_without_initializing_test() {
-    let mut cube = Tesseract::new();
+    let mut cube = TessBaseAPI::new();
     let pix = Pix::read_mem(include_bytes!("../../img.tiff")).unwrap();
     cube.set_image_2(&pix);
     assert_eq!(cube.recognize(), Err(()));
