@@ -12,6 +12,36 @@ use tesseract_sys::{
     TessBaseAPISetSourceResolution, TessBaseAPISetVariable, TessDeleteText,
 };
 
+pub struct Pix {
+    raw: *mut leptonica_sys::Pix,
+}
+
+impl Drop for Pix {
+    fn drop(&mut self) {
+        unsafe {
+            pixFreeData(self.raw);
+        }
+    }
+}
+
+impl Pix {
+    unsafe fn new(raw: *mut leptonica_sys::Pix) -> Self {
+        Self { raw }
+    }
+
+    /// Wrapper for [`pixRead`](https://tpgit.github.io/Leptonica/leptprotos_8h.html#a84634846cbb5e01df667d6e9241dfc53)
+    ///
+    /// Read an image
+    fn read(filename: &CStr) -> Result<Self, ()> {
+        let ptr = unsafe { pixRead(filename.as_ptr()) };
+        if ptr.is_null() {
+            Err(())
+        } else {
+            Ok(unsafe { Self::new(ptr) })
+        }
+    }
+}
+
 pub struct Tesseract {
     raw: *mut TessBaseAPI,
 }
@@ -84,11 +114,9 @@ impl Tesseract {
     }
 }
 impl TesseractInitialized {
-    pub fn set_image(&mut self, filename: &CStr) {
+    pub fn set_image_2(&mut self, pix: &Pix) {
         unsafe {
-            let img = pixRead(filename.as_ptr());
-            TessBaseAPISetImage2(self.0.raw, img);
-            pixFreeData(img);
+            TessBaseAPISetImage2(self.0.raw, pix.raw);
         }
     }
     pub fn set_frame(
@@ -148,18 +176,19 @@ impl TesseractInitialized {
     ///
     /// This will implicitly call `recognize` if required.
     pub fn get_text(&self) -> Result<TesseractText, ()> {
-        let cs_value = unsafe { TessBaseAPIGetUTF8Text(self.0.raw) };
-        if cs_value.is_null() {
+        let ptr = unsafe { TessBaseAPIGetUTF8Text(self.0.raw) };
+        if ptr.is_null() {
             Err(())
         } else {
-            Ok(unsafe { TesseractText::new(cs_value) })
+            Ok(unsafe { TesseractText::new(ptr) })
         }
     }
 }
 
 pub fn ocr(filename: &CStr, language: &CStr) -> TesseractText {
     let mut cube = Tesseract::new().initialize(None, Some(language)).unwrap();
-    cube.set_image(filename);
+    let image = Pix::read(filename).unwrap();
+    cube.set_image_2(&image);
     cube.recognize().unwrap();
     cube.get_text().unwrap()
 }
@@ -247,7 +276,8 @@ fn expanded_test() {
     let mut cube = Tesseract::new()
         .initialize(None, Some(&CString::new("eng").unwrap()))
         .unwrap();
-    cube.set_image(&CString::new("../img.png").unwrap());
+    let pix = Pix::read(&CString::new("../img.png").unwrap()).unwrap();
+    cube.set_image_2(&pix);
     cube.recognize().unwrap();
     assert_eq!(
         cube.get_text().unwrap().as_ref().to_str(),
