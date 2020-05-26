@@ -59,7 +59,7 @@ impl Tesseract {
         }
     }
 
-    /// Wrapper for [`Init`](https://fossies.org/dox/tesseract-4.1.1/classtesseract_1_1TessBaseAPI.html#a96899e8e5358d96752ab1cfc3bc09f3e)
+    /// Wrapper for [`Init`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a96899e8e5358d96752ab1cfc3bc09f3e)
     ///
     /// Start tesseract
     ///
@@ -127,7 +127,7 @@ impl TesseractInitialized {
     pub fn set_variable(&mut self, name: &CStr, value: &CStr) -> i32 {
         unsafe { TessBaseAPISetVariable(self.0.raw, name.as_ptr(), value.as_ptr()) }
     }
-    /// Wrapper for [`Recognize`](https://fossies.org/dox/tesseract-4.1.1/classtesseract_1_1TessBaseAPI.html#a0e4065c20b142d69a2324ee0c74ae0b0)
+    /// Wrapper for [`Recognize`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a0e4065c20b142d69a2324ee0c74ae0b0)
     ///
     /// Recognize the image. Returns `Ok(())` on success and `Err(())` otherwise.
     /// It is currently unclear to me what would make it error.
@@ -140,7 +140,7 @@ impl TesseractInitialized {
             _ => Err(()),
         }
     }
-    /// Wrapper for [`GetUTF8Text`](https://fossies.org/dox/tesseract-4.1.1/classtesseract_1_1TessBaseAPI.html#a115ef656f83352ba608b4f0bf9cfa2c4)
+    /// Wrapper for [`GetUTF8Text`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a115ef656f83352ba608b4f0bf9cfa2c4)
     ///
     /// Get the text out of an image.
     ///
