@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use std::str;
 
-mod plumbing;
+pub mod plumbing;
 
 pub struct Tesseract(plumbing::TessBaseAPI);
 
