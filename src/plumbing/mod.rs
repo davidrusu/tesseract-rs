@@ -1,16 +1,16 @@
 extern crate leptonica_sys;
 extern crate tesseract_sys;
 
-use leptonica_sys::{pixFreeData, pixRead, pixReadMem};
-use std::convert::AsRef;
-use std::ffi::CStr;
-use std::os::raw::{c_char, c_int};
-use std::ptr;
-use tesseract_sys::{
+use self::leptonica_sys::{pixFreeData, pixRead, pixReadMem};
+use self::tesseract_sys::{
     TessBaseAPICreate, TessBaseAPIDelete, TessBaseAPIGetUTF8Text, TessBaseAPIInit3,
     TessBaseAPIRecognize, TessBaseAPISetImage, TessBaseAPISetImage2,
     TessBaseAPISetSourceResolution, TessBaseAPISetVariable, TessDeleteText,
 };
+use std::convert::AsRef;
+use std::ffi::CStr;
+use std::os::raw::{c_char, c_int};
+use std::ptr;
 
 pub struct Pix {
     raw: *mut leptonica_sys::Pix,
@@ -32,7 +32,7 @@ impl Pix {
     /// Wrapper for [`pixRead`](https://tpgit.github.io/Leptonica/leptprotos_8h.html#a84634846cbb5e01df667d6e9241dfc53)
     ///
     /// Read an image from a filename
-    fn read(filename: &CStr) -> Result<Self, ()> {
+    pub fn read(filename: &CStr) -> Result<Self, ()> {
         let ptr = unsafe { pixRead(filename.as_ptr()) };
         if ptr.is_null() {
             Err(())
@@ -152,8 +152,13 @@ impl TessBaseAPI {
         }
     }
 
-    pub fn set_variable(&mut self, name: &CStr, value: &CStr) -> i32 {
-        unsafe { TessBaseAPISetVariable(self.raw, name.as_ptr(), value.as_ptr()) }
+    /// Wrapper for [`SetVariable`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a2e09259c558c6d8e0f7e523cbaf5adf5)
+    pub fn set_variable(&mut self, name: &CStr, value: &CStr) -> Result<(), ()> {
+        let ret = unsafe { TessBaseAPISetVariable(self.raw, name.as_ptr(), value.as_ptr()) };
+        match ret {
+            1 => Ok(()),
+            _ => Err(()),
+        }
     }
     /// Wrapper for [`Recognize`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a0e4065c20b142d69a2324ee0c74ae0b0)
     ///
@@ -185,64 +190,6 @@ impl TessBaseAPI {
     }
 }
 
-pub fn ocr(filename: &CStr, language: &CStr) -> TesseractText {
-    let mut cube = TessBaseAPI::new();
-    cube.init_2(None, Some(language)).unwrap();
-    let image = Pix::read(filename).unwrap();
-    cube.set_image_2(&image);
-    cube.recognize().unwrap();
-    cube.get_text().unwrap()
-}
-
-pub fn ocr_from_frame(
-    frame_data: &[u8],
-    width: i32,
-    height: i32,
-    bytes_per_pixel: i32,
-    bytes_per_line: i32,
-    language: &CStr,
-) -> TesseractText {
-    let mut cube = TessBaseAPI::new();
-    cube.init_2(None, Some(language)).unwrap();
-    cube.set_image(frame_data, width, height, bytes_per_pixel, bytes_per_line);
-    cube.recognize().unwrap();
-    cube.get_text().unwrap()
-}
-
-#[test]
-fn ocr_test() {
-    use std::ffi::CString;
-
-    assert_eq!(
-        ocr(
-            &CString::new("../img.png").unwrap(),
-            &CString::new("eng").unwrap()
-        )
-        .as_ref()
-        .to_str(),
-        Ok(include_str!("../../img.txt"))
-    );
-}
-
-#[test]
-fn ocr_from_frame_test() {
-    use std::ffi::CString;
-
-    assert_eq!(
-        ocr_from_frame(
-            include_bytes!("../../img.tiff"),
-            2256,
-            324,
-            3,
-            2256 * 3,
-            &CString::new("eng").unwrap()
-        )
-        .as_ref()
-        .to_str(),
-        Ok(include_str!("../../img.txt"))
-    );
-}
-
 #[test]
 fn ocr_from_mem_with_ppi() {
     use std::ffi::CString;
@@ -266,8 +213,12 @@ fn expanded_test() {
     use std::ffi::CString;
 
     let mut cube = TessBaseAPI::new();
-    cube.init_2(None, Some(&CString::new("eng").unwrap()))
-        .unwrap();
+    cube.set_variable(
+        &CString::new("tessedit_char_blacklist").unwrap(),
+        &CString::new("z").unwrap(),
+    )
+    .unwrap();
+    cube.init_2(None, None).unwrap();
     let pix = Pix::read(&CString::new("../img.png").unwrap()).unwrap();
     cube.set_image_2(&pix);
     cube.recognize().unwrap();
