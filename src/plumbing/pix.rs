@@ -4,6 +4,7 @@ use self::leptonica_sys::{pixFreeData, pixRead, pixReadMem};
 use std::convert::AsRef;
 use std::ffi::CStr;
 
+/// Wrapper around Leptonica's [`Pix`](https://tpgit.github.io/Leptonica/struct_pix.html) structure
 pub struct Pix(*mut leptonica_sys::Pix);
 
 impl Drop for Pix {

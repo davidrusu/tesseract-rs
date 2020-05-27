@@ -1,3 +1,8 @@
+//! A direct but safe wrapper for `tesseract-sys`. It should stick as close as
+//! possible to the upstream API whilst avoiding unsafe behaviour.
+//!
+//! Are you interested in using this on its own?
+//! Raise an issue, and I'll split it into its own crate.
 mod pix;
 mod tess_base_api;
 mod tesseract_text;

@@ -10,13 +10,12 @@ use std::ffi::CStr;
 use std::os::raw::c_int;
 use std::ptr;
 
-pub struct TessBaseAPI {
-    raw: *mut tesseract_sys::TessBaseAPI,
-}
+/// Wrapper around [`tesseract::TessBaseAPI`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html)
+pub struct TessBaseAPI(*mut tesseract_sys::TessBaseAPI);
 
 impl Drop for TessBaseAPI {
     fn drop(&mut self) {
-        unsafe { TessBaseAPIDelete(self.raw) }
+        unsafe { TessBaseAPIDelete(self.0) }
     }
 }
 
@@ -28,9 +27,7 @@ impl Default for TessBaseAPI {
 
 impl TessBaseAPI {
     pub fn new() -> TessBaseAPI {
-        TessBaseAPI {
-            raw: unsafe { TessBaseAPICreate() },
-        }
+        TessBaseAPI(unsafe { TessBaseAPICreate() })
     }
 
     /// Wrapper for [`Init-2`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a965ef2ff51c440756519a3d6f755f34f)
@@ -40,7 +37,7 @@ impl TessBaseAPI {
     pub fn init_2(&self, datapath: Option<&CStr>, language: Option<&CStr>) -> Result<(), ()> {
         let ret = unsafe {
             TessBaseAPIInit3(
-                self.raw,
+                self.0,
                 datapath.map(CStr::as_ptr).unwrap_or_else(ptr::null),
                 language.map(CStr::as_ptr).unwrap_or_else(ptr::null),
             )
@@ -55,7 +52,7 @@ impl TessBaseAPI {
     /// Wrapper for [`SetImage-2`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a0c4c7f05fd58b3665b123232a05545ad)
     pub fn set_image_2(&mut self, pix: &Pix) {
         unsafe {
-            TessBaseAPISetImage2(self.raw, *pix.as_ref());
+            TessBaseAPISetImage2(self.0, *pix.as_ref());
         }
     }
 
@@ -70,7 +67,7 @@ impl TessBaseAPI {
     ) {
         unsafe {
             TessBaseAPISetImage(
-                self.raw,
+                self.0,
                 image_data.as_ptr(),
                 width,
                 height,
@@ -82,13 +79,13 @@ impl TessBaseAPI {
     /// Wrapper for [`SetSourceResolution`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a4ded6137507a4e8eb6ed4bea0b9648f4)
     pub fn set_source_resolution(&mut self, ppi: c_int) {
         unsafe {
-            TessBaseAPISetSourceResolution(self.raw, ppi);
+            TessBaseAPISetSourceResolution(self.0, ppi);
         }
     }
 
     /// Wrapper for [`SetVariable`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a2e09259c558c6d8e0f7e523cbaf5adf5)
     pub fn set_variable(&mut self, name: &CStr, value: &CStr) -> Result<(), ()> {
-        let ret = unsafe { TessBaseAPISetVariable(self.raw, name.as_ptr(), value.as_ptr()) };
+        let ret = unsafe { TessBaseAPISetVariable(self.0, name.as_ptr(), value.as_ptr()) };
         match ret {
             1 => Ok(()),
             _ => Err(()),
@@ -101,7 +98,7 @@ impl TessBaseAPI {
     ///
     /// It could take a progress argument (`monitor`). If there is appetite for this, let me know and I could try and implement it.
     pub fn recognize(&mut self) -> Result<(), ()> {
-        let ret = unsafe { TessBaseAPIRecognize(self.raw, ptr::null_mut()) };
+        let ret = unsafe { TessBaseAPIRecognize(self.0, ptr::null_mut()) };
         match ret {
             0 => Ok(()),
             _ => Err(()),
@@ -115,7 +112,7 @@ impl TessBaseAPI {
     ///
     /// This will implicitly call `recognize` if required.
     pub fn get_text(&self) -> Result<TesseractText, ()> {
-        let ptr = unsafe { TessBaseAPIGetUTF8Text(self.raw) };
+        let ptr = unsafe { TessBaseAPIGetUTF8Text(self.0) };
         if ptr.is_null() {
             Err(())
         } else {
