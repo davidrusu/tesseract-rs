@@ -1,10 +1,12 @@
 extern crate tesseract_sys;
+extern crate thiserror;
 
 use self::tesseract_sys::{
     TessBaseAPICreate, TessBaseAPIDelete, TessBaseAPIGetUTF8Text, TessBaseAPIInit3,
     TessBaseAPIRecognize, TessBaseAPISetImage, TessBaseAPISetImage2,
     TessBaseAPISetSourceResolution, TessBaseAPISetVariable,
 };
+use self::thiserror::Error;
 use crate::plumbing::{Pix, TesseractText};
 use std::ffi::CStr;
 use std::os::raw::c_int;
@@ -25,6 +27,22 @@ impl Default for TessBaseAPI {
     }
 }
 
+#[derive(Debug, Error)]
+#[error("TessBaseApi failed to initialize")]
+pub struct TessBaseAPIInitError();
+
+#[derive(Debug, Error)]
+#[error("TessBaseApi failed to set variable")]
+pub struct TessBaseAPISetVariableError();
+
+#[derive(Debug, Error)]
+#[error("TessBaseApi failed to recognize")]
+pub struct TessBaseAPIRecogniseError();
+
+#[derive(Debug, Error)]
+#[error("TessBaseApi get_utf8_text returned null")]
+pub struct TessBaseAPIGetUTF8TextError();
+
 impl TessBaseAPI {
     pub fn new() -> TessBaseAPI {
         TessBaseAPI(unsafe { TessBaseAPICreate() })
@@ -34,7 +52,11 @@ impl TessBaseAPI {
     /// and [`TessBaseAPIInit3`](https://tesseract-ocr.github.io/tessapi/5.x/a00008.html#a5978ca2bd29df32a2eece528329ed425)
     ///
     /// Start tesseract
-    pub fn init_2(&self, datapath: Option<&CStr>, language: Option<&CStr>) -> Result<(), ()> {
+    pub fn init_2(
+        &mut self,
+        datapath: Option<&CStr>,
+        language: Option<&CStr>,
+    ) -> Result<(), TessBaseAPIInitError> {
         let ret = unsafe {
             TessBaseAPIInit3(
                 self.0,
@@ -45,7 +67,7 @@ impl TessBaseAPI {
         if ret == 0 {
             Ok(())
         } else {
-            Err(())
+            Err(TessBaseAPIInitError {})
         }
     }
 
@@ -84,11 +106,15 @@ impl TessBaseAPI {
     }
 
     /// Wrapper for [`SetVariable`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a2e09259c558c6d8e0f7e523cbaf5adf5)
-    pub fn set_variable(&mut self, name: &CStr, value: &CStr) -> Result<(), ()> {
+    pub fn set_variable(
+        &mut self,
+        name: &CStr,
+        value: &CStr,
+    ) -> Result<(), TessBaseAPISetVariableError> {
         let ret = unsafe { TessBaseAPISetVariable(self.0, name.as_ptr(), value.as_ptr()) };
         match ret {
             1 => Ok(()),
-            _ => Err(()),
+            _ => Err(TessBaseAPISetVariableError {}),
         }
     }
     /// Wrapper for [`Recognize`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a0e4065c20b142d69a2324ee0c74ae0b0)
@@ -97,11 +123,11 @@ impl TessBaseAPI {
     /// It is currently unclear to me what would make it error.
     ///
     /// It could take a progress argument (`monitor`). If there is appetite for this, let me know and I could try and implement it.
-    pub fn recognize(&mut self) -> Result<(), ()> {
+    pub fn recognize(&mut self) -> Result<(), TessBaseAPIRecogniseError> {
         let ret = unsafe { TessBaseAPIRecognize(self.0, ptr::null_mut()) };
         match ret {
             0 => Ok(()),
-            _ => Err(()),
+            _ => Err(TessBaseAPIRecogniseError {}),
         }
     }
     /// Wrapper for [`GetUTF8Text`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a115ef656f83352ba608b4f0bf9cfa2c4)
@@ -111,12 +137,20 @@ impl TessBaseAPI {
     /// Can return an error (null pointer), but it is not clear to me what would cause this.
     ///
     /// This will implicitly call `recognize` if required.
-    pub fn get_text(&self) -> Result<TesseractText, ()> {
+    pub fn get_utf8_text(&mut self) -> Result<TesseractText, TessBaseAPIGetUTF8TextError> {
         let ptr = unsafe { TessBaseAPIGetUTF8Text(self.0) };
         if ptr.is_null() {
-            Err(())
+            Err(TessBaseAPIGetUTF8TextError {})
         } else {
             Ok(unsafe { TesseractText::new(ptr) })
         }
     }
+}
+
+#[test]
+fn set_variable_error_test() {
+    let fail = std::ffi::CString::new("fail").unwrap();
+    let mut tess = TessBaseAPI::new();
+    tess.init_2(None, None).unwrap();
+    assert!(tess.set_variable(&fail, &fail).is_err());
 }

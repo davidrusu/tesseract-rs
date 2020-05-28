@@ -8,7 +8,12 @@ mod tess_base_api;
 mod tesseract_text;
 
 pub use self::pix::Pix;
+pub use self::pix::PixReadMemError;
 pub use self::tess_base_api::TessBaseAPI;
+pub use self::tess_base_api::TessBaseAPIGetUTF8TextError;
+pub use self::tess_base_api::TessBaseAPIInitError;
+pub use self::tess_base_api::TessBaseAPIRecogniseError;
+pub use self::tess_base_api::TessBaseAPISetVariableError;
 pub use self::tesseract_text::TesseractText;
 
 #[test]
@@ -24,7 +29,7 @@ fn ocr_from_mem_with_ppi() {
 
     cube.set_source_resolution(70);
     assert_eq!(
-        cube.get_text().unwrap().as_ref().to_str(),
+        cube.get_utf8_text().unwrap().as_ref().to_str(),
         Ok(include_str!("../../img.txt"))
     );
 }
@@ -44,7 +49,7 @@ fn expanded_test() {
     cube.set_image_2(&pix);
     cube.recognize().unwrap();
     assert_eq!(
-        cube.get_text().unwrap().as_ref().to_str(),
+        cube.get_utf8_text().unwrap().as_ref().to_str(),
         Ok(include_str!("../../img.txt"))
     )
 }
@@ -54,6 +59,6 @@ fn setting_image_without_initializing_test() {
     let mut cube = TessBaseAPI::new();
     let pix = Pix::read_mem(include_bytes!("../../img.tiff")).unwrap();
     cube.set_image_2(&pix);
-    assert_eq!(cube.recognize(), Err(()));
-    assert!(cube.get_text().is_err());
+    assert!(cube.recognize().is_err());
+    assert!(cube.get_utf8_text().is_err());
 }

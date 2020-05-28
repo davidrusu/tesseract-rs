@@ -1,6 +1,8 @@
 extern crate leptonica_sys;
+extern crate thiserror;
 
 use self::leptonica_sys::{pixFreeData, pixRead, pixReadMem};
+use self::thiserror::Error;
 use std::convert::AsRef;
 use std::ffi::CStr;
 
@@ -21,14 +23,22 @@ impl AsRef<*mut leptonica_sys::Pix> for Pix {
     }
 }
 
+#[derive(Debug, Error)]
+#[error("Pix::read returned null")]
+pub struct PixReadError();
+
+#[derive(Debug, Error)]
+#[error("Pix::read_mem returned null")]
+pub struct PixReadMemError();
+
 impl Pix {
     /// Wrapper for [`pixRead`](https://tpgit.github.io/Leptonica/leptprotos_8h.html#a84634846cbb5e01df667d6e9241dfc53)
     ///
     /// Read an image from a filename
-    pub fn read(filename: &CStr) -> Result<Self, ()> {
+    pub fn read(filename: &CStr) -> Result<Self, PixReadError> {
         let ptr = unsafe { pixRead(filename.as_ptr()) };
         if ptr.is_null() {
-            Err(())
+            Err(PixReadError {})
         } else {
             Ok(Self(ptr))
         }
@@ -37,12 +47,23 @@ impl Pix {
     /// Wrapper for [`pixReadMem`](https://tpgit.github.io/Leptonica/leptprotos_8h.html#a027a927dc3438192e3bdae8c219d7f6a)
     ///
     /// Read an image from memory
-    pub fn read_mem(img: &[u8]) -> Result<Self, ()> {
+    pub fn read_mem(img: &[u8]) -> Result<Self, PixReadMemError> {
         let ptr = unsafe { pixReadMem(img.as_ptr(), img.len()) };
         if ptr.is_null() {
-            Err(())
+            Err(PixReadMemError {})
         } else {
             Ok(Self(ptr))
         }
     }
+}
+
+#[test]
+fn read_error_test() {
+    let path = std::ffi::CString::new("fail").unwrap();
+    assert!(Pix::read(&path).is_err());
+}
+
+#[test]
+fn read_mem_error_test() {
+    assert!(Pix::read_mem(&[]).is_err());
 }
