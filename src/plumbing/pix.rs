@@ -58,9 +58,10 @@ impl Pix {
 }
 
 #[test]
-fn read_error_test() {
-    let path = std::ffi::CString::new("fail").unwrap();
+fn read_error_test() -> Result<(), Box<dyn std::error::Error>> {
+    let path = std::ffi::CString::new("fail")?;
     assert!(Pix::read(&path).is_err());
+    Ok(())
 }
 
 #[test]

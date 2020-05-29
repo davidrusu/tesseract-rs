@@ -8,6 +8,22 @@ use std::str;
 pub mod plumbing;
 
 #[derive(Debug, Error)]
+pub enum SetLangError {
+    #[error("Conversion to CString failed")]
+    CStringError(#[from] NulError),
+    #[error("TessBaseApi failed to initialize")]
+    TessBaseAPIInitError(#[from] plumbing::TessBaseAPIInitError),
+}
+
+#[derive(Debug, Error)]
+pub enum SetImageError {
+    #[error("Conversion to CString failed")]
+    CStringError(#[from] NulError),
+    #[error("Failed to read image")]
+    PixReadError(#[from] plumbing::PixReadError),
+}
+
+#[derive(Debug, Error)]
 pub enum SetVariableError {
     #[error("Conversion to CString failed")]
     CStringError(#[from] NulError),
@@ -27,12 +43,12 @@ impl Tesseract {
     pub fn new() -> Tesseract {
         Tesseract(plumbing::TessBaseAPI::new())
     }
-    pub fn set_lang(&mut self, language: &str) -> Result<(), plumbing::TessBaseAPIInitError> {
-        self.0.init_2(None, Some(&CString::new(language).unwrap()))
+    pub fn set_lang(&mut self, language: &str) -> Result<(), SetLangError> {
+        Ok(self.0.init_2(None, Some(&CString::new(language)?))?)
     }
-    pub fn set_image(&mut self, filename: &str) {
-        let pix = plumbing::Pix::read(&CString::new(filename).unwrap()).unwrap();
-        self.0.set_image_2(&pix)
+    pub fn set_image(&mut self, filename: &str) -> Result<(), SetImageError> {
+        let pix = plumbing::Pix::read(&CString::new(filename)?)?;
+        Ok(self.0.set_image_2(&pix))
     }
     pub fn set_frame(
         &mut self,
@@ -76,7 +92,7 @@ impl Tesseract {
 pub fn ocr(filename: &str, language: &str) -> String {
     let mut cube = Tesseract::new();
     cube.set_lang(language).unwrap();
-    cube.set_image(filename);
+    cube.set_image(filename).unwrap();
     cube.recognize().unwrap();
     cube.get_text().unwrap()
 }
@@ -127,7 +143,7 @@ fn ocr_from_mem_with_ppi() {
 fn expanded_test() {
     let mut cube = Tesseract::new();
     cube.set_lang("eng").unwrap();
-    cube.set_image("img.png");
+    cube.set_image("img.png").unwrap();
     cube.set_variable("tessedit_char_blacklist", "z").unwrap();
     cube.recognize().unwrap();
     assert_eq!(&cube.get_text().unwrap(), include_str!("../img.txt"));

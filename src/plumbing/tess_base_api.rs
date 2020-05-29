@@ -148,9 +148,10 @@ impl TessBaseAPI {
 }
 
 #[test]
-fn set_variable_error_test() {
-    let fail = std::ffi::CString::new("fail").unwrap();
+fn set_variable_error_test() -> Result<(), Box<dyn std::error::Error>> {
+    let fail = std::ffi::CString::new("fail")?;
     let mut tess = TessBaseAPI::new();
-    tess.init_2(None, None).unwrap();
+    tess.init_2(None, None)?;
     assert!(tess.set_variable(&fail, &fail).is_err());
+    Ok(())
 }
