@@ -31,6 +31,24 @@ pub enum SetVariableError {
     TessBaseAPISetVariableError(#[from] plumbing::TessBaseAPISetVariableError),
 }
 
+#[derive(Debug, Error)]
+pub enum TesseractError {
+    #[error("Failed to set language")]
+    SetLangError(#[from] SetLangError),
+    #[error("Failed to set image")]
+    SetImageError(#[from] SetImageError),
+    #[error("Errored whilst recognizing")]
+    RecognizeError(#[from] plumbing::TessBaseAPIRecogniseError),
+    #[error("Errored whilst getting text")]
+    GetTextError(#[from] plumbing::TessBaseAPIGetUTF8TextError),
+    #[error("Errored whilst setting frame")]
+    SetFrameError(#[from] plumbing::TessBaseAPISetImageSafetyError),
+    #[error("Errored whilst setting image from mem")]
+    SetImgFromMemError(#[from] plumbing::PixReadMemError),
+    #[error("Errored whilst setting variable")]
+    SetVariableError(#[from] SetVariableError),
+}
+
 pub struct Tesseract(plumbing::TessBaseAPI);
 
 impl Default for Tesseract {
@@ -58,10 +76,9 @@ impl Tesseract {
         height: i32,
         bytes_per_pixel: i32,
         bytes_per_line: i32,
-    ) {
+    ) -> Result<(), plumbing::TessBaseAPISetImageSafetyError> {
         self.0
             .set_image_1(frame_data, width, height, bytes_per_pixel, bytes_per_line)
-            .unwrap();
     }
     pub fn set_image_from_mem(&mut self, img: &[u8]) -> Result<(), plumbing::PixReadMemError> {
         let pix = plumbing::Pix::read_mem(img)?;
@@ -91,12 +108,12 @@ impl Tesseract {
     }
 }
 
-pub fn ocr(filename: &str, language: &str) -> String {
+pub fn ocr(filename: &str, language: &str) -> Result<String, TesseractError> {
     let mut cube = Tesseract::new();
-    cube.set_lang(language).unwrap();
-    cube.set_image(filename).unwrap();
-    cube.recognize().unwrap();
-    cube.get_text().unwrap()
+    cube.set_lang(language)?;
+    cube.set_image(filename)?;
+    cube.recognize()?;
+    Ok(cube.get_text()?)
 }
 
 pub fn ocr_from_frame(
@@ -106,47 +123,50 @@ pub fn ocr_from_frame(
     bytes_per_pixel: i32,
     bytes_per_line: i32,
     language: &str,
-) -> String {
+) -> Result<String, TesseractError> {
     let mut cube = Tesseract::new();
-    cube.set_lang(language).unwrap();
-    cube.set_frame(frame_data, width, height, bytes_per_pixel, bytes_per_line);
-    cube.recognize().unwrap();
-    cube.get_text().unwrap()
+    cube.set_lang(language)?;
+    cube.set_frame(frame_data, width, height, bytes_per_pixel, bytes_per_line)?;
+    cube.recognize()?;
+    Ok(cube.get_text()?)
 }
 
 #[test]
-fn ocr_test() {
+fn ocr_test() -> Result<(), TesseractError> {
     assert_eq!(
-        ocr("img.png", "eng"),
+        ocr("img.png", "eng")?,
         include_str!("../img.txt").to_string()
     );
+    Ok(())
 }
 
 #[test]
-fn ocr_from_frame_test() {
+fn ocr_from_frame_test() -> Result<(), TesseractError> {
     assert_eq!(
-        ocr_from_frame(include_bytes!("../img.tiff"), 2256, 324, 3, 2256 * 3, "eng"),
+        ocr_from_frame(include_bytes!("../img.tiff"), 2256, 324, 3, 2256 * 3, "eng")?,
         include_str!("../img.txt").to_string()
     );
+    Ok(())
 }
 
 #[test]
-fn ocr_from_mem_with_ppi() {
+fn ocr_from_mem_with_ppi() -> Result<(), TesseractError> {
     let mut cube = Tesseract::new();
-    cube.set_lang("eng").unwrap();
-    cube.set_image_from_mem(include_bytes!("../img.tiff"))
-        .unwrap();
+    cube.set_lang("eng")?;
+    cube.set_image_from_mem(include_bytes!("../img.tiff"))?;
 
     cube.set_source_resolution(70);
-    assert_eq!(&cube.get_text().unwrap(), include_str!("../img.txt"));
+    assert_eq!(&cube.get_text()?, include_str!("../img.txt"));
+    Ok(())
 }
 
 #[test]
-fn expanded_test() {
+fn expanded_test() -> Result<(), TesseractError> {
     let mut cube = Tesseract::new();
-    cube.set_lang("eng").unwrap();
-    cube.set_image("img.png").unwrap();
-    cube.set_variable("tessedit_char_blacklist", "z").unwrap();
-    cube.recognize().unwrap();
-    assert_eq!(&cube.get_text().unwrap(), include_str!("../img.txt"));
+    cube.set_lang("eng")?;
+    cube.set_image("img.png")?;
+    cube.set_variable("tessedit_char_blacklist", "z")?;
+    cube.recognize()?;
+    assert_eq!(&cube.get_text()?, include_str!("../img.txt"));
+    Ok(())
 }

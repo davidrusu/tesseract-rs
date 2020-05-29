@@ -14,6 +14,7 @@ pub use self::tess_base_api::TessBaseAPI;
 pub use self::tess_base_api::TessBaseAPIGetUTF8TextError;
 pub use self::tess_base_api::TessBaseAPIInitError;
 pub use self::tess_base_api::TessBaseAPIRecogniseError;
+pub use self::tess_base_api::TessBaseAPISetImageSafetyError;
 pub use self::tess_base_api::TessBaseAPISetVariableError;
 pub use self::tesseract_text::TesseractText;
 
