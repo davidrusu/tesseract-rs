@@ -8,6 +8,7 @@ use self::tesseract_sys::{
 };
 use self::thiserror::Error;
 use crate::plumbing::{Pix, TesseractText};
+use std::convert::TryInto;
 use std::ffi::CStr;
 use std::os::raw::c_int;
 use std::ptr;
@@ -42,6 +43,16 @@ pub struct TessBaseAPIRecogniseError();
 #[derive(Debug, Error)]
 #[error("TessBaseApi get_utf8_text returned null")]
 pub struct TessBaseAPIGetUTF8TextError();
+
+#[derive(Debug, Error, PartialEq)]
+pub enum TessBaseAPISetImageSafetyError {
+    #[error("Image dimensions exceed computer memory")]
+    DimensionsExceedMemory(),
+    #[error("Image dimensions exceed image size")]
+    DimensionsExceedImageSize(),
+    #[error("Image width exceeds bytes per line")]
+    ImageWidthExceedsBytesPerLine(),
+}
 
 impl TessBaseAPI {
     pub fn new() -> TessBaseAPI {
@@ -79,14 +90,32 @@ impl TessBaseAPI {
     }
 
     /// Wrapper for [`SetImage-1`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#aa463622111f3b11d8fca5863709cc699)
-    pub fn set_image(
+    pub fn set_image_1(
         &mut self,
         image_data: &[u8],
         width: c_int,
         height: c_int,
         bytes_per_pixel: c_int,
         bytes_per_line: c_int,
-    ) {
+    ) -> Result<(), TessBaseAPISetImageSafetyError> {
+        let claimed_image_size: usize = (height * bytes_per_line)
+            .try_into()
+            .map_err(|_| TessBaseAPISetImageSafetyError::DimensionsExceedMemory())?;
+        if claimed_image_size > image_data.len() {
+            return Err(TessBaseAPISetImageSafetyError::DimensionsExceedImageSize());
+        }
+        match bytes_per_pixel {
+            0 => {
+                if width > bytes_per_line * 8 {
+                    return Err(TessBaseAPISetImageSafetyError::ImageWidthExceedsBytesPerLine());
+                }
+            }
+            _ => {
+                if width * bytes_per_pixel > bytes_per_line {
+                    return Err(TessBaseAPISetImageSafetyError::ImageWidthExceedsBytesPerLine());
+                }
+            }
+        }
         unsafe {
             TessBaseAPISetImage(
                 self.0,
@@ -96,7 +125,8 @@ impl TessBaseAPI {
                 bytes_per_pixel,
                 bytes_per_line,
             );
-        }
+        };
+        Ok(())
     }
     /// Wrapper for [`SetSourceResolution`](https://tesseract-ocr.github.io/tessapi/5.x/a02438.html#a4ded6137507a4e8eb6ed4bea0b9648f4)
     pub fn set_source_resolution(&mut self, ppi: c_int) {
@@ -145,6 +175,31 @@ impl TessBaseAPI {
             Ok(unsafe { TesseractText::new(ptr) })
         }
     }
+}
+
+#[test]
+fn set_image_1_safety_test() -> Result<(), TessBaseAPIInitError> {
+    let mut tess = TessBaseAPI::new();
+    tess.init_2(None, None)?;
+    assert_eq!(
+        tess.set_image_1(include_bytes!("../../img.tiff"), 2256, 324, 3, 2256 * 3),
+        Ok(())
+    );
+    assert_eq!(tess.set_image_1(&[0, 0, 0, 0], 2, 2, 1, 2), Ok(()));
+    assert_eq!(
+        tess.set_image_1(&[0, 0, 0], 2, 2, 1, 2),
+        Err(TessBaseAPISetImageSafetyError::DimensionsExceedImageSize())
+    );
+    assert_eq!(
+        tess.set_image_1(&[0, 0, 0, 0], 2, 2, 1, 1),
+        Err(TessBaseAPISetImageSafetyError::ImageWidthExceedsBytesPerLine())
+    );
+    assert_eq!(tess.set_image_1(&[0, 0, 0, 0], 16, 2, 0, 2), Ok(()));
+    assert_eq!(
+        tess.set_image_1(&[0, 0, 0, 0], 17, 2, 0, 2),
+        Err(TessBaseAPISetImageSafetyError::ImageWidthExceedsBytesPerLine())
+    );
+    Ok(())
 }
 
 #[test]

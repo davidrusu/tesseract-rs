@@ -48,7 +48,8 @@ impl Tesseract {
     }
     pub fn set_image(&mut self, filename: &str) -> Result<(), SetImageError> {
         let pix = plumbing::Pix::read(&CString::new(filename)?)?;
-        Ok(self.0.set_image_2(&pix))
+        self.0.set_image_2(&pix);
+        Ok(())
     }
     pub fn set_frame(
         &mut self,
@@ -59,7 +60,8 @@ impl Tesseract {
         bytes_per_line: i32,
     ) {
         self.0
-            .set_image(frame_data, width, height, bytes_per_pixel, bytes_per_line);
+            .set_image_1(frame_data, width, height, bytes_per_pixel, bytes_per_line)
+            .unwrap();
     }
     pub fn set_image_from_mem(&mut self, img: &[u8]) -> Result<(), plumbing::PixReadMemError> {
         let pix = plumbing::Pix::read_mem(img)?;
